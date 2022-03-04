@@ -8,11 +8,11 @@ featuredLinks:
   guides:
     - /code-security/getting-started/securing-your-repository
     - /code-security/getting-started/securing-your-organization
-    - '{% ifversion fpt %}/code-security/security-advisories/creating-a-security-advisory{% endif %}'
+    - '{% ifversion fpt %}/code-security/repository-security-advisories/creating-a-repository-security-advisory{% endif %}'
     - '{% ifversion ghes or ghae %}/code-security/secure-coding/automatically-scanning-your-code-for-vulnerabilities-and-errors/setting-up-code-scanning-for-a-repository{% endif%}'
   guideCards:
     - '{% ifversion fpt %}/code-security/supply-chain-security/managing-vulnerabilities-in-your-projects-dependencies/configuring-dependabot-security-updates{% endif %}'
-    - '{% ifversion fpt %}/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/enabling-and-disabling-version-updates{% endif %}'
+    - '{% ifversion fpt %}/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/enabling-and-disabling-dependabot-version-updates{% endif %}'
     - '{% ifversion fpt %}/code-security/secure-coding/automatically-scanning-your-code-for-vulnerabilities-and-errors/setting-up-code-scanning-for-a-repository{% endif %}'
     - '{% ifversion ghes %}/code-security/supply-chain-security/understanding-your-software-supply-chain/exploring-the-dependencies-of-a-repository{% endif %}'
     - '{% ifversion ghes %}/code-security/supply-chain-security/managing-vulnerabilities-in-your-projects-dependencies/configuring-notifications-for-vulnerable-dependencies{% endif %}'
@@ -22,7 +22,7 @@ featuredLinks:
   popular:
     - '{% ifversion ghes %}/admin/release-notes{% endif %}'
     - /code-security/supply-chain-security/managing-vulnerabilities-in-your-projects-dependencies/about-alerts-for-vulnerable-dependencies
-    - /code-security/security-advisories/about-coordinated-disclosure-of-security-vulnerabilities
+    - /code-security/repository-security-advisories/about-coordinated-disclosure-of-security-vulnerabilities
     - /code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/keeping-your-actions-up-to-date-with-dependabot
     - /code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/configuration-options-for-dependency-updates
     - /code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/managing-encrypted-secrets-for-dependabot
@@ -34,13 +34,15 @@ featuredLinks:
 changelog:
   label: security-and-compliance
   versions:
-    free-pro-team: '*'
+    fpt: '*'
+    ghec: '*'
 examples_source: data/product-examples/code-security/code-examples.yml
 layout: product-landing
 versions:
   fpt: '*'
-  ghes: '>=3.0'
+  ghes: '*'
   ghae: '*'
+  ghec: '*'
 topics:
   - Repositories
   - Dependencies
@@ -49,7 +51,7 @@ children:
   - /getting-started
   - /secret-scanning
   - /code-scanning
-  - /security-advisories
+  - /repository-security-advisories
   - /supply-chain-security
   - /security-overview
   - /guides

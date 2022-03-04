@@ -2,17 +2,18 @@
 title: Authorizing OAuth Apps
 intro: '{% data reusables.shortdesc.authorizing_oauth_apps %}'
 redirect_from:
-  - /apps/building-integrations/setting-up-and-registering-oauth-apps/about-authorization-options-for-oauth-apps/
-  - /apps/building-integrations/setting-up-and-registering-oauth-apps/directing-users-to-review-their-access/
-  - /apps/building-integrations/setting-up-and-registering-oauth-apps/creating-multiple-tokens-for-oauth-apps/
-  - /v3/oauth/
-  - /apps/building-oauth-apps/authorization-options-for-oauth-apps/
+  - /apps/building-integrations/setting-up-and-registering-oauth-apps/about-authorization-options-for-oauth-apps
+  - /apps/building-integrations/setting-up-and-registering-oauth-apps/directing-users-to-review-their-access
+  - /apps/building-integrations/setting-up-and-registering-oauth-apps/creating-multiple-tokens-for-oauth-apps
+  - /v3/oauth
+  - /apps/building-oauth-apps/authorization-options-for-oauth-apps
   - /apps/building-oauth-apps/authorizing-oauth-apps
   - /developers/apps/authorizing-oauth-apps
 versions:
   fpt: '*'
   ghes: '*'
   ghae: '*'
+  ghec: '*'
 topics:
   - OAuth Apps
 ---
@@ -49,7 +50,7 @@ When your GitHub App specifies a `login` parameter, it prompts users with a spec
 
 Name | Type | Description
 -----|------|--------------
-`client_id`|`string` | **Required**. The client ID you received from GitHub when you {% ifversion fpt %}[registered](https://github.com/settings/applications/new){% else %}registered{% endif %}.
+`client_id`|`string` | **Required**. The client ID you received from GitHub when you {% ifversion fpt or ghec %}[registered](https://github.com/settings/applications/new){% else %}registered{% endif %}.
 `redirect_uri`|`string` | The URL in your application where users will be sent after authorization. See details below about [redirect urls](#redirect-urls).
 `login` | `string` | Suggests a specific account to use for signing in and authorizing the app.
 `scope`|`string` | A space-delimited list of [scopes](/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/). If not provided, `scope` defaults to an empty list for users that have not authorized any scopes for the application. For users who have authorized scopes for the application, the user won't be shown the OAuth authorization page with the list of scopes. Instead, this step of the flow will automatically complete with the set of scopes the user has authorized for the application. For example, if a user has already performed the web flow twice and has authorized one token with `user` scope and another token with `repo` scope, a third web flow that does not provide a `scope` will receive a token with `user` and `repo` scope.
@@ -77,20 +78,29 @@ Name | Type | Description
 
 By default, the response takes the following form:
 
-    access_token={% ifversion fpt or ghes > 3.1 or ghae-next %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}&token_type=bearer
+```
+access_token={% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}&scope=repo%2Cgist&token_type=bearer
+```
 
-You can also receive the content in different formats depending on the Accept
-header:
+{% data reusables.apps.oauth-auth-vary-response %}
 
-    Accept: application/json
-    {"access_token":"{% ifversion fpt or ghes > 3.1 or ghae-next %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}", "scope":"repo,gist", "token_type":"bearer"}
+```json
+Accept: application/json
+{
+  "access_token":"{% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}",
+  "scope":"repo,gist",
+  "token_type":"bearer"
+}
+```
 
-    Accept: application/xml
-    <OAuth>
-      <token_type>bearer</token_type>
-      <scope>repo,gist</scope>
-      <access_token>{% ifversion fpt or ghes > 3.1 or ghae-next %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}</access_token>
-    </OAuth>
+```xml
+Accept: application/xml
+<OAuth>
+  <token_type>bearer</token_type>
+  <scope>repo,gist</scope>
+  <access_token>{% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}</access_token>
+</OAuth>
+```
 
 ### 3. Use the access token to access the API
 
@@ -107,13 +117,11 @@ curl -H "Authorization: token OAUTH-TOKEN" {% data variables.product.api_url_pre
 
 ## Device flow
 
-{% ifversion ghes < 3.1 %}
 {% note %}
 
 **Note:** The device flow is in public beta and subject to change.
 
 {% endnote %}
-{% endif %}
 
 The device flow allows you to authorize users for a headless app, such as a CLI tool or Git credential manager.
 
@@ -138,27 +146,35 @@ Name | Type | Description
 
 #### Response
 
-{% ifversion fpt %}
-  ```JSON
-  {
-    "device_code": "3584d83530557fdd1f46af8289938c8ef79f9dc5",
-    "user_code": "WDJB-MJHT",
-    "verification_uri": "https://github.com/login/device",
-    "expires_in": 900,
-    "interval": 5
-  }
-  ```
-{% else %}
-  ```JSON
-  {
-    "device_code": "3584d83530557fdd1f46af8289938c8ef79f9dc5",
-    "user_code": "WDJB-MJHT",
-    "verification_uri": "http(s)://[hostname]/login/device",
-    "expires_in": 900,
-    "interval": 5
-  }
-  ```
-{% endif %}
+By default, the response takes the following form:
+
+```
+device_code=3584d83530557fdd1f46af8289938c8ef79f9dc5&expires_in=900&interval=5&user_code=WDJB-MJHT&verification_uri=https%3A%2F%{% data variables.product.product_url %}%2Flogin%2Fdevice
+```
+
+{% data reusables.apps.oauth-auth-vary-response %}
+
+```json
+Accept: application/json
+{
+  "device_code": "3584d83530557fdd1f46af8289938c8ef79f9dc5",
+  "user_code": "WDJB-MJHT",
+  "verification_uri": "{% data variables.product.oauth_host_code %}/login/device",
+  "expires_in": 900,
+  "interval": 5
+}
+```
+
+```xml
+Accept: application/xml
+<OAuth>
+  <device_code>3584d83530557fdd1f46af8289938c8ef79f9dc5</device_code>
+  <user_code>WDJB-MJHT</user_code>
+  <verification_uri>{% data variables.product.oauth_host_code %}/login/device</verification_uri>
+  <expires_in>900</expires_in>
+  <interval>5</interval>
+</OAuth>
+```
 
 #### Response parameters
 
@@ -196,12 +212,30 @@ Name | Type | Description
 
 #### Response
 
+By default, the response takes the following form:
+
+```
+access_token={% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}&token_type=bearer&scope=repo%2Cgist
+```
+
+{% data reusables.apps.oauth-auth-vary-response %}
+
 ```json
+Accept: application/json
 {
- "access_token": "{% ifversion fpt or ghes > 3.1 or ghae-next %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}",
+ "access_token": "{% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}",
   "token_type": "bearer",
-  "scope": "user"
+  "scope": "repo,gist"
 }
+```
+
+```xml
+Accept: application/xml
+<OAuth>
+  <access_token>{% ifversion fpt or ghes > 3.1 or ghae or ghec %}gho_16C7e42F292c6912E7710c838347Ae178B4a{% else %}e72e16c7e42f292c6912e7710c838347ae178b4a{% endif %}</access_token>
+  <token_type>bearer</token_type>
+  <scope>gist,repo</scope>
+</OAuth>
 ```
 
 ### Rate limits for the device flow
@@ -228,7 +262,7 @@ For more information, see the "[OAuth 2.0 Device Authorization Grant](https://to
 
 Non-web authentication is available for limited situations like testing. If you need to, you can use [Basic Authentication](/rest/overview/other-authentication-methods#basic-authentication) to create a personal access token using your [Personal access tokens settings page](/articles/creating-an-access-token-for-command-line-use). This technique enables the user to revoke access at any time.
 
-{% ifversion fpt or ghes %}
+{% ifversion fpt or ghes or ghec %}
 {% note %}
 
 **Note:** When using the non-web application flow to create an OAuth2 token, make sure to understand how to [work with
@@ -260,10 +294,10 @@ subdirectory of the callback URL.
 
 The optional `redirect_uri` parameter can also be used for localhost URLs. If the application specifies a localhost URL and a port, then after authorizing the application users will be redirected to the provided URL and port. The `redirect_uri` does not need to match the port specified in the callback url for the app.
 
-For the `http://localhost/path` callback URL, you can use this `redirect_uri`:
+For the `http://127.0.0.1/path` callback URL, you can use this `redirect_uri`:
 
 ```
-http://localhost:1234/path
+http://127.0.0.1:1234/path
 ```
 
 ## Creating multiple tokens for OAuth Apps
@@ -296,7 +330,8 @@ To build this link, you'll need your OAuth Apps `client_id` that you received fr
 
 * "[Troubleshooting authorization request errors](/apps/managing-oauth-apps/troubleshooting-authorization-request-errors)"
 * "[Troubleshooting OAuth App access token request errors](/apps/managing-oauth-apps/troubleshooting-oauth-app-access-token-request-errors)"
-* "[Device flow errors](#errors-for-the-device-flow)"
+* "[Device flow errors](#error-codes-for-the-device-flow)"{% ifversion fpt or ghae-issue-4374 or ghes > 3.2 or ghec %}
+* "[Token expiration and revocation](/github/authenticating-to-github/keeping-your-account-and-data-secure/token-expiration-and-revocation)"{% endif %}
 
 ## Further reading
 

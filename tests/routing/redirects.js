@@ -4,7 +4,6 @@ import { isPlainObject } from 'lodash-es'
 import supertest from 'supertest'
 import createApp from '../../lib/app.js'
 import enterpriseServerReleases from '../../lib/enterprise-server-releases.js'
-import nonEnterpriseDefaultVersion from '../../lib/non-enterprise-default-version.js'
 import Page from '../../lib/page.js'
 import { get } from '../helpers/supertest.js'
 import versionSatisfiesRange from '../../lib/version-satisfies-range.js'
@@ -21,38 +20,34 @@ describe('redirects', () => {
     redirects = JSON.parse(res.text)
   })
 
-  test('page.redirects is an array', async () => {
+  test('page.buildRedirects() returns an array', async () => {
     const page = await Page.init({
       relativePath:
-        'github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-branches.md',
+        'pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-branches.md',
       basePath: path.join(__dirname, '../../content'),
       languageCode: 'en',
     })
-    page.buildRedirects()
-    expect(isPlainObject(page.redirects)).toBe(true)
+    const pageRedirects = page.buildRedirects()
+    expect(isPlainObject(pageRedirects)).toBe(true)
   })
 
-  test('dotcom homepage page.redirects', async () => {
+  test('dotcom homepage page.buildRedirects()', async () => {
     const page = await Page.init({
       relativePath: 'github/index.md',
       basePath: path.join(__dirname, '../../content'),
       languageCode: 'en',
     })
-    page.buildRedirects()
-    expect(page.redirects[`/en/${nonEnterpriseDefaultVersion}/github`]).toBe('/en/github')
-    expect(page.redirects['/articles']).toBe('/en/github')
-    expect(page.redirects['/en/articles']).toBe('/en/github')
-    expect(page.redirects[`/en/${nonEnterpriseDefaultVersion}/articles`]).toBe('/en/github')
-    expect(page.redirects['/common-issues-and-questions']).toBe('/en/github')
-    expect(page.redirects['/en/common-issues-and-questions']).toBe('/en/github')
-    expect(page.redirects[`/en/enterprise/${enterpriseServerReleases.latest}/user/articles`]).toBe(
-      `/en/enterprise-server@${enterpriseServerReleases.latest}/github`
+    const pageRedirects = page.buildRedirects()
+    expect(pageRedirects['/articles']).toBe('/github')
+    expect(pageRedirects['/common-issues-and-questions']).toBe('/github')
+    expect(pageRedirects[`/enterprise-server@${enterpriseServerReleases.latest}/articles`]).toBe(
+      `/enterprise-server@${enterpriseServerReleases.latest}/github`
     )
     expect(
-      page.redirects[
-        `/en/enterprise/${enterpriseServerReleases.latest}/user/common-issues-and-questions`
+      pageRedirects[
+        `/enterprise-server@${enterpriseServerReleases.latest}/common-issues-and-questions`
       ]
-    ).toBe(`/en/enterprise-server@${enterpriseServerReleases.latest}/github`)
+    ).toBe(`/enterprise-server@${enterpriseServerReleases.latest}/github`)
   })
 
   test('converts single `redirect_from` strings values into arrays', async () => {
@@ -61,14 +56,14 @@ describe('redirects', () => {
       basePath: path.join(__dirname, '../fixtures'),
       languageCode: 'en',
     })
-    page.buildRedirects()
-    expect(page.redirects['/redirect-string']).toBe('/en/article-with-redirect-from-string')
+    const pageRedirects = page.buildRedirects()
+    expect(pageRedirects['/redirect-string']).toBe('/article-with-redirect-from-string')
   })
 
   describe('query params', () => {
     test('are preserved in redirected URLs', async () => {
       const res = await get('/enterprise/admin?query=pulls')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       const expected = `/en/enterprise-server@${enterpriseServerReleases.latest}/admin?query=pulls`
       expect(res.headers.location).toBe(expected)
     })
@@ -76,7 +71,16 @@ describe('redirects', () => {
     test('have q= converted to query=', async () => {
       const res = await get('/en/enterprise/admin?q=pulls')
       expect(res.statusCode).toBe(301)
-      const expected = `/en/enterprise-server@${enterpriseServerReleases.latest}/admin?query=pulls`
+      const expected = '/en/enterprise/admin?query=pulls'
+      expect(res.headers.location).toBe(expected)
+    })
+
+    test('have faq= not converted to query=', async () => {
+      // Don't confuse `?faq=` for `?q=` just because they both start with `q=`
+      // Docs internal #21945
+      const res = await get('/en/enterprise/admin?faq=pulls')
+      expect(res.statusCode).toBe(301)
+      const expected = `/en/enterprise-server@${enterpriseServerReleases.latest}/admin?faq=pulls`
       expect(res.headers.location).toBe(expected)
     })
 
@@ -88,13 +92,8 @@ describe('redirects', () => {
     })
 
     test('do not work on other paths that include "search"', async () => {
-      const reqPath = `/en/enterprise-server@${enterpriseServerReleases.latest}/admin/configuration/managing-connections-between-github-enterprise-server-and-github-enterprise-cloud/enabling-unified-search-between-github-enterprise-server-and-githubcom`
+      const reqPath = `/en/enterprise-server@${enterpriseServerReleases.latest}/admin/configuration/configuring-github-connect/enabling-unified-search-for-your-enterprise`
       const res = await get(reqPath)
-      expect(res.statusCode).toBe(200)
-    })
-
-    test('work on deprecated versions', async () => {
-      const res = await get('/enterprise/2.12/admin/search?utf8=%E2%9C%93&q=pulls')
       expect(res.statusCode).toBe(200)
     })
   })
@@ -122,14 +121,16 @@ describe('redirects', () => {
   describe('home page redirects', () => {
     test('homepage redirects to english by default', async () => {
       const res = await get('/')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe('/en')
+      expect(res.headers['cache-control']).toBe('private, no-store')
     })
 
     test('homepage redirects to preferred language', async () => {
       const res = await get('/', { headers: { 'Accept-Language': 'ja' } })
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe('/ja')
+      expect(res.headers['cache-control']).toBe('private, no-store')
     })
   })
 
@@ -165,13 +166,13 @@ describe('redirects', () => {
 
     test('/enterprise', async () => {
       const res = await get('/enterprise')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(enterpriseHome)
     })
 
     test('no language code redirects to english', async () => {
       const res = await get(`/enterprise/${enterpriseServerReleases.latest}`)
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(enterpriseHome)
     })
 
@@ -189,7 +190,7 @@ describe('redirects', () => {
 
     test('hardcoded @latest redirects to latest version', async () => {
       const res = await get('/en/enterprise-server@latest')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(enterpriseHome)
     })
   })
@@ -197,7 +198,7 @@ describe('redirects', () => {
   describe('2.13+ deprecated enterprise', () => {
     test('no language code redirects to english', async () => {
       const res = await get('/enterprise/2.13')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe('/en/enterprise/2.13')
     })
 
@@ -217,7 +218,7 @@ describe('redirects', () => {
 
     test('frontmatter redirect', async () => {
       const res = await get('/enterprise/2.12/user/articles/github-flavored-markdown')
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302) // because it doesn't have a language
       expect(res.headers.location).toBe('/enterprise/2.12/user/categories/writing-on-github/')
     })
   })
@@ -233,7 +234,7 @@ describe('redirects', () => {
 
     test('no language code redirects to english', async () => {
       const res = await get(`/enterprise/${latest}/admin`)
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(enterpriseAdmin)
     })
 
@@ -317,7 +318,7 @@ describe('redirects', () => {
 
     test('no language code redirects to english', async () => {
       const res = await get(`/enterprise/${enterpriseServerReleases.latest}/user/github`)
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(enterpriseUser)
     })
 
@@ -335,12 +336,12 @@ describe('redirects', () => {
   })
 
   describe('enterprise user article', () => {
-    const userArticle = `/en/enterprise-server@${enterpriseServerReleases.latest}/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-strong-password`
+    const userArticle = `/en/enterprise-server@${enterpriseServerReleases.latest}/get-started/quickstart/fork-a-repo`
     const japaneseUserArticle = userArticle.replace('/en/', '/ja/')
 
     test('no product redirects to GitHub.com product on the latest version', async () => {
       const res = await get(
-        `/en/enterprise/${enterpriseServerReleases.latest}/user/articles/creating-a-strong-password`
+        `/en/enterprise/${enterpriseServerReleases.latest}/user/articles/fork-a-repo`
       )
       expect(res.statusCode).toBe(301)
       expect(res.headers.location).toBe(userArticle)
@@ -354,28 +355,28 @@ describe('redirects', () => {
 
     test('no language code redirects to english', async () => {
       const res = await get(
-        `/enterprise/${enterpriseServerReleases.latest}/user/articles/creating-a-strong-password`
+        `/enterprise/${enterpriseServerReleases.latest}/user/articles/fork-a-repo`
       )
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(userArticle)
     })
 
     test('no version redirects to latest version', async () => {
-      const res = await get('/en/enterprise/user/articles/creating-a-strong-password')
+      const res = await get('/en/enterprise/articles/fork-a-repo')
       expect(res.statusCode).toBe(301)
       expect(res.headers.location).toBe(userArticle)
     })
 
     test('no version redirects to latest version (japanese)', async () => {
-      const res = await get('/ja/enterprise/user/articles/creating-a-strong-password')
+      const res = await get('/ja/enterprise/articles/fork-a-repo')
       expect(res.statusCode).toBe(301)
       expect(res.headers.location).toBe(japaneseUserArticle)
     })
   })
 
   describe('enterprise user article with frontmatter redirect', () => {
-    const userArticle = `/en/enterprise-server@${enterpriseServerReleases.latest}/github/authenticating-to-github/keeping-your-account-and-data-secure/reviewing-your-ssh-keys`
-    const redirectFromPath = '/articles/reviewing-your-ssh-keys'
+    const userArticle = `/en/enterprise-server@${enterpriseServerReleases.latest}/get-started/quickstart/fork-a-repo`
+    const redirectFromPath = '/articles/fork-a-repo'
     const japaneseUserArticle = userArticle.replace('/en/', '/ja/')
 
     test('redirects to expected article', async () => {
@@ -390,7 +391,7 @@ describe('redirects', () => {
       const res = await get(
         `/enterprise/${enterpriseServerReleases.latest}/user${redirectFromPath}`
       )
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(userArticle)
     })
 
@@ -416,7 +417,7 @@ describe('redirects', () => {
       const res = await get(
         '/desktop/contributing-and-collaborating-using-github-desktop/creating-an-issue-or-pull-request'
       )
-      expect(res.statusCode).toBe(301)
+      expect(res.statusCode).toBe(302)
       expect(res.headers.location).toBe(desktopGuide)
     })
 

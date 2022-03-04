@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from 'fs/promises'
 import { get, flatten, isPlainObject } from 'lodash-es'
 import { sentenceCase } from 'change-case'
 import GitHubSlugger from 'github-slugger'
@@ -7,6 +8,9 @@ import renderContent from '../../../lib/render-content/index.js'
 import createCodeSamples from './create-code-samples.js'
 import Ajv from 'ajv'
 import operationSchema from './operation-schema.js'
+const overrideOperations = JSON.parse(
+  await readFile('script/rest/utils/rest-api-overrides.json', 'utf8')
+)
 const slugger = new GitHubSlugger()
 
 // titles that can't be derived by sentence-casing the ID
@@ -26,14 +30,34 @@ export default class Operation {
     this.slug = slugger.slug(this.summary)
 
     // Add category
+
     // workaround for misnamed `code-scanning.` category bug
     // https://github.com/github/rest-api-description/issues/38
     this['x-github'].category = this['x-github'].category.replace('.', '')
-    this.category = this['x-github'].category
+    // A temporary override file allows us to override the category defined in
+    // the openapi schema. Without it, we'd have to update several
+    // @documentation_urls in the github/github code every time we move
+    // an endpoint to a new page.
+    this.category = overrideOperations[this.operationId]
+      ? overrideOperations[this.operationId].category
+      : this['x-github'].category
     this.categoryLabel = categoryTitles[this.category] || sentenceCase(this.category)
 
+    // Removing since we don't need this in the decorated files
+    delete this['x-github'].githubCloudOnly
+
     // Add subcategory
-    if (this['x-github'].subcategory) {
+
+    // A temporary override file allows us to override the subcategory
+    // defined in the openapi schema. Without it, we'd have to update several
+    // @documentation_urls in the github/github code every time we move
+    // an endpoint to a new page.
+    if (overrideOperations[this.operationId]) {
+      if (overrideOperations[this.operationId].subcategory) {
+        this.subcategory = overrideOperations[this.operationId].subcategory
+        this.subcategoryLabel = sentenceCase(this.subcategory)
+      }
+    } else if (this['x-github'].subcategory) {
       this.subcategory = this['x-github'].subcategory
       this.subcategoryLabel = sentenceCase(this.subcategory)
     }
@@ -80,7 +104,10 @@ export default class Operation {
     return Promise.all(
       this['x-codeSamples'].map(async (sample) => {
         const markdown = createCodeBlock(sample.source, sample.lang.toLowerCase())
-        sample.html = await renderContent(markdown)
+        sample.sourceHTML = await renderContent(markdown)
+
+        // Removing since we don't need this in the decorated files
+        delete sample.source
         return sample
       })
     )
@@ -96,7 +123,7 @@ export default class Operation {
         const rawResponse = rawResponses[responseCode]
         const httpStatusCode = responseCode
         const httpStatusMessage = httpStatusCodes.getMessage(Number(responseCode))
-        const responseDescription = rawResponse.description
+        const responseDescription = await renderContent(rawResponse.description)
 
         const cleanResponses = []
 
@@ -243,6 +270,7 @@ export default class Operation {
           .replace(/\n`application/, '\n```\napplication')
           .replace(/json`$/, 'json\n```')
         preview.html = await renderContent(note)
+        delete preview.note
       })
     )
   }
@@ -265,6 +293,12 @@ async function getBodyParams(paramsObject, requiredParams) {
       param.name = paramKey
       param.in = 'body'
       param.rawType = param.type
+      // OpenAPI 3.0 only had a single value for `type`. OpenAPI 3.1
+      // will either be a single value or an array of values.
+      // This makes type an array regardless of how many values the array
+      // includes. This allows us to support 3.1 while remaining backwards
+      // compatible with 3.0.
+      if (!Array.isArray(param.type)) param.type = [param.type]
       param.rawDescription = param.description
 
       // Stores the types listed under the `Type` column in the `Parameters`
@@ -300,16 +334,24 @@ async function getBodyParams(paramsObject, requiredParams) {
       }
 
       // Arrays require modifying the displayed type (e.g., array of strings)
-      if (param.type === 'array') {
+      if (param.type.includes('array')) {
         if (param.items.type) paramArray.push(`array of ${param.items.type}s`)
         if (param.items.oneOf) {
           paramArray.push(param.items.oneOf.map((elem) => `array of ${elem.type}s`))
         }
+        // push the remaining types in the param.type array
+        // that aren't type array
+        const remainingItems = param.type
+        const indexOfArrayType = remainingItems.indexOf('array')
+        remainingItems.splice(indexOfArrayType, 1)
+        paramArray.push(...remainingItems)
       } else if (param.type) {
-        paramArray.push(param.type)
+        paramArray.push(...param.type)
       }
-
-      if (param.nullable) paramArray.push('nullable')
+      // Supports backwards compatibility for OpenAPI 3.0
+      // In 3.1 a nullable type is part of the param.type array and
+      // the property param.nullable does not exist.
+      if (param.nullable) paramArray.push('null')
 
       param.type = paramArray.flat().join(' or ')
       param.description = param.description || ''
